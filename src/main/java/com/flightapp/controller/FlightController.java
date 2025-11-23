@@ -9,6 +9,7 @@ import com.flightapp.service.FlightService;
 import com.flightapp.model.AirlineInventory;
 import com.flightapp.model.Booking;
 import com.flightapp.dto.BookingRequest;
+import com.flightapp.dto.BookingUpdateRequest;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -28,7 +29,7 @@ public class FlightController {
         this.flightService = flightService;
     }
 
-    // -------------------- ADD INVENTORY -----------------------
+    // ADD INVENTORY (admin)
     @PostMapping("/airline/inventory/add")
     public Mono<ResponseEntity<AirlineInventory>> addInventory(
             @RequestBody @Valid AirlineInventory inventory,
@@ -42,7 +43,7 @@ public class FlightController {
                 });
     }
 
-    // -------------------- SEARCH -----------------------
+    // SEARCH
     @PostMapping("/search")
     public Flux<AirlineInventory> search(@RequestParam String origin,
                                          @RequestParam String destination,
@@ -55,7 +56,7 @@ public class FlightController {
         return flightService.search(origin, destination, f, t);
     }
 
-    // -------------------- BOOK -----------------------
+    // BOOK
     @PostMapping("/booking/{flightId}")
     public Mono<ResponseEntity<Booking>> book(@PathVariable String flightId,
                                               @RequestBody @Valid BookingRequest req,
@@ -71,7 +72,7 @@ public class FlightController {
                 });
     }
 
-    // -------------------- GET TICKET -----------------------
+    // GET TICKET BY PNR
     @GetMapping("/ticket/{pnr}")
     public Mono<ResponseEntity<Booking>> ticket(@PathVariable String pnr) {
         return flightService.findByPnr(pnr)
@@ -79,7 +80,7 @@ public class FlightController {
                 .defaultIfEmpty(ResponseEntity.<Booking>notFound().build());
     }
 
-    // -------------------- GET HISTORY -----------------------
+    // GET HISTORY
     @GetMapping("/booking/history/{emailId}")
     public Flux<Booking> history(@PathVariable String emailId,
                                  @RequestParam(name = "includeCancelled", defaultValue = "false")
@@ -89,16 +90,34 @@ public class FlightController {
                 .filter(b -> includeCancelled || !Boolean.TRUE.equals(b.isCanceled()));
     }
 
-    // -------------------- CANCEL -----------------------
+    // CANCEL: Owner-only. Email must be present in header X-User-Email and in request body (email).
+    // Returns 200 with message on success; returns JSON error messages on failure.
     @DeleteMapping("/booking/cancel/{pnr}")
-    public Mono<ResponseEntity<Map<String, Object>>> cancel(@PathVariable String pnr) {
+    public Mono<ResponseEntity<Map<String, Object>>> cancel(
+            @PathVariable String pnr,
+            @RequestHeader(name = "X-User-Email", required = true) String headerEmail,
+            @RequestBody @Valid Map<String, String> body ) {
 
-        return flightService.cancelByPnr(pnr)
+        String bodyEmail = body.get("email");
+
+        if (bodyEmail == null || bodyEmail.isBlank()) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("error", "Email required in request body");
+            return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err));
+        }
+
+        if (!headerEmail.equalsIgnoreCase(bodyEmail)) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("error", "Header email and body email must match");
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(err));
+        }
+
+        return flightService.cancelByPnrAndEmail(pnr, bodyEmail)
                 .then(Mono.fromSupplier(() -> {
                     Map<String, Object> response = new HashMap<>();
                     response.put("message", "Booking cancelled successfully");
                     response.put("pnr", pnr);
-                    return ResponseEntity.ok(response); // 200 with message
+                    return ResponseEntity.ok(response); // 200
                 }))
                 .onErrorResume(err -> {
                     Map<String, Object> error = new HashMap<>();
@@ -112,6 +131,42 @@ public class FlightController {
                         return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error));
                     }
 
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error));
+                });
+    }
+
+    // UPDATE Booking: Owner-only. Email must be present in header and body.
+    // This updates passenger details, meal preference, name and optionally seatNumbers (if seats available).
+    @PutMapping("/booking/{pnr}")
+    public Mono<ResponseEntity<Map<String, Object>>> updateBooking(
+            @PathVariable String pnr,
+            @RequestHeader(name = "X-User-Email", required = true) String headerEmail,
+            @RequestBody @Valid BookingUpdateRequest updateReq) {
+
+        if (!headerEmail.equalsIgnoreCase(updateReq.getEmail())) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("error", "Header email and body email must match");
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(err));
+        }
+
+        return flightService.updateBooking(pnr, updateReq)
+                .map(updated -> {
+                    Map<String, Object> resp = new HashMap<>();
+                    resp.put("message", "Booking updated successfully");
+                    resp.put("pnr", updated.getPnr());
+                    resp.put("booking", updated);
+                    return ResponseEntity.ok(resp);
+                })
+                .onErrorResume(err -> {
+                    Map<String, Object> error = new HashMap<>();
+                    error.put("error", err.getMessage());
+
+                    if (err instanceof IllegalArgumentException) {
+                        return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).body(error));
+                    }
+                    if (err instanceof IllegalStateException) {
+                        return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error));
+                    }
                     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error));
                 });
     }

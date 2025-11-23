@@ -5,6 +5,8 @@ import reactor.core.publisher.Mono;
 import com.flightapp.model.AirlineInventory;
 import com.flightapp.model.Booking;
 import com.flightapp.dto.BookingRequest;
+import com.flightapp.dto.BookingUpdateRequest;
+
 import java.time.LocalDateTime;
 
 public interface FlightService {
@@ -13,5 +15,6 @@ public interface FlightService {
   Mono<Booking> book(String flightId, BookingRequest req);
   Mono<Booking> findByPnr(String pnr);
   Flux<Booking> findByEmail(String email);
-  Mono<Void> cancelByPnr(String pnr);
+  Mono<Void> cancelByPnrAndEmail(String pnr, String email);
+  Mono<Booking> updateBooking(String pnr, BookingUpdateRequest req);
   }
