@@ -1,0 +1,66 @@
+package com.flightapp.config;
+
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.stereotype.Component;
+
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.index.Index;
+import org.springframework.data.mongodb.core.index.ReactiveIndexOperations;
+
+import com.flightapp.model.AirlineInventory;
+
+import reactor.core.publisher.Mono;
+import java.time.LocalDateTime;
+
+@Component
+public class DataInitializer implements ApplicationRunner {
+
+  private final ReactiveMongoTemplate mongoTemplate;
+
+  public DataInitializer(ReactiveMongoTemplate mongoTemplate) {
+    this.mongoTemplate = mongoTemplate;
+  }
+
+  @Override
+  public void run(ApplicationArguments args) {
+    // Ensure unique index on booking.pnr and index on booking.email
+    // Booking collection indexing handled elsewhere or you can add similar code for Booking class.
+    // Here we add an index example for Inventory (flightNumber), and you can add for bookings similarly.
+
+    ReactiveIndexOperations invIdxOps = mongoTemplate.indexOps(AirlineInventory.class);
+
+    // Create index on flightNumber (non-unique), and on origin+destination+departure to speed search
+    Mono<Void> idxs = Mono.when(
+        Mono.fromRunnable(() -> invIdxOps.ensureIndex(new Index().on("flightNumber", org.springframework.data.domain.Sort.Direction.ASC)).block()),
+        Mono.fromRunnable(() -> invIdxOps.ensureIndex(new Index().on("origin", org.springframework.data.domain.Sort.Direction.ASC)
+                .on("destination", org.springframework.data.domain.Sort.Direction.ASC)
+                .on("departure", org.springframework.data.domain.Sort.Direction.ASC)).block())
+    ).then();
+
+    // Optionally insert sample inventory if no inventories exist
+    Mono<Long> countMono = mongoTemplate.count(new org.springframework.data.mongodb.core.query.Query(), AirlineInventory.class);
+
+    idxs.then(countMono).flatMap(cnt -> {
+      if (cnt == 0) {
+        AirlineInventory sample = new AirlineInventory();
+        sample.setAirline("Indigo");
+        sample.setAirlineLogoUrl("");
+        sample.setFlightNumber("IN123");
+        sample.setOrigin("HYD");
+        sample.setDestination("BLR");
+        sample.setDeparture(LocalDateTime.now().plusDays(2).withHour(9).withMinute(0).withSecond(0).withNano(0));
+        sample.setArrival(sample.getDeparture().plusHours(1).plusMinutes(30));
+        sample.setTotalSeats(30);
+        sample.setPrice(4500.0);
+        // availableSeats will be created by your service if null — but you can set initial as well
+        sample.setAvailableSeats(java.util.stream.IntStream.rangeClosed(1, 30).mapToObj(i -> "S" + i).toList());
+        return mongoTemplate.insert(sample).then();
+      }
+      return Mono.empty();
+    }).subscribe(
+      v -> {},
+      err -> System.err.println("DataInitializer error: " + err.getMessage())
+    );
+  }
+}
