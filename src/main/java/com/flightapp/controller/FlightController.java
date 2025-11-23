@@ -10,6 +10,7 @@ import com.flightapp.model.AirlineInventory;
 import com.flightapp.model.Booking;
 import com.flightapp.dto.BookingRequest;
 import com.flightapp.dto.BookingUpdateRequest;
+import com.flightapp.dto.SearchRequest;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -45,15 +46,17 @@ public class FlightController {
 
     // SEARCH
     @PostMapping("/search")
-    public Flux<AirlineInventory> search(@RequestParam String origin,
-                                         @RequestParam String destination,
-                                         @RequestParam String from,
-                                         @RequestParam String to) {
+    public Flux<AirlineInventory> search(@RequestBody @Valid SearchRequest req) {
 
-        LocalDateTime f = LocalDateTime.parse(from);
-        LocalDateTime t = LocalDateTime.parse(to);
+        LocalDateTime fromDt = LocalDateTime.parse(req.getFrom());
+        LocalDateTime toDt = LocalDateTime.parse(req.getTo());
 
-        return flightService.search(origin, destination, f, t);
+        return flightService.search(
+            req.getOrigin(),
+            req.getDestination(),
+            fromDt,
+            toDt
+        );
     }
 
     // BOOK
