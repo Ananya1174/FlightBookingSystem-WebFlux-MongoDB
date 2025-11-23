@@ -1,5 +1,7 @@
 package com.flightapp.exception;
 
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -10,17 +12,18 @@ import reactor.core.publisher.Mono;
 public class GlobalErrorHandler {
 
   @ExceptionHandler(IllegalArgumentException.class)
-  public Mono<ResponseEntity<String>> handleNotFound(IllegalArgumentException ex) {
-    return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage()));
+  public Mono<ResponseEntity<Object>> handleBadRequest(IllegalArgumentException ex) {
+    return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage())));
   }
 
   @ExceptionHandler(IllegalStateException.class)
-  public Mono<ResponseEntity<String>> handleBadRequest(IllegalStateException ex) {
-    return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage()));
+  public Mono<ResponseEntity<Object>> handleConflict(IllegalStateException ex) {
+    return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage())));
   }
 
   @ExceptionHandler(Exception.class)
-  public Mono<ResponseEntity<String>> handleOther(Exception ex) {
-    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal server error"));
+  public Mono<ResponseEntity<Object>> handleOther(Exception ex) {
+    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .body(Map.of("error", "Internal server error")));
   }
 }
