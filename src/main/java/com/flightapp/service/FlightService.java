@@ -13,5 +13,5 @@ public interface FlightService {
   Mono<Booking> book(String flightId, BookingRequest req);
   Mono<Booking> findByPnr(String pnr);
   Flux<Booking> findByEmail(String email);
-  Mono<Boolean> cancelByPnr(String pnr);
-}
+  Mono<Void> cancelByPnr(String pnr);
+  }

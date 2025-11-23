@@ -3,7 +3,6 @@ package com.flightapp.service;
 import org.springframework.stereotype.Service;
 import com.flightapp.repository.InventoryRepository;
 import com.flightapp.repository.BookingRepository;
-import com.flightapp.service.FlightService;
 import com.flightapp.model.AirlineInventory;
 import com.flightapp.model.Booking;
 import com.flightapp.dto.BookingRequest;
@@ -80,17 +79,21 @@ public class FlightServiceImpl implements FlightService {
   }
 
   @Override
-  public Mono<Boolean> cancelByPnr(String pnr) {
+  public Mono<Void> cancelByPnr(String pnr) {
     return bookingRepository.findByPnr(pnr)
+      .switchIfEmpty(Mono.error(new IllegalArgumentException("PNR not found")))
       .flatMap(b -> {
-        // check time constraint: cancel only if more than 24 hours prior to journey
+        if (b.isCanceled()) {
+          return Mono.error(new IllegalStateException("Booking already cancelled"));
+        }
         LocalDateTime now = LocalDateTime.now();
-        // assume journeyDate at startOfDay; we stored journeyDate earlier
-        if (b.getJourneyDate().minusHours(24).isBefore(now)) {
+        // allow cancellation only if more than 24 hrs prior to journey
+        if (!b.getJourneyDate().minusHours(24).isAfter(now)) {
           return Mono.error(new IllegalStateException("Cancellation allowed only 24 hrs prior to journey"));
         }
         b.setCanceled(true);
-        return bookingRepository.save(b).map(x -> true);
+        b.setCanceledAt(now);
+        return bookingRepository.save(b).then(); // return Mono<Void>
       });
   }
 }
