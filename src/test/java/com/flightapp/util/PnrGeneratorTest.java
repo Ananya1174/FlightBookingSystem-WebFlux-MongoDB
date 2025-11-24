@@ -1,17 +1,19 @@
 package com.flightapp.util;
 
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class PnrGeneratorTest {
 
     @Test
-    void generate_returnsNonEmptyUpper() {
-        String p = PnrGenerator.generate();
-        assertNotNull(p);
-        assertFalse(p.isBlank());
-        assertEquals(p.toUpperCase(), p);
-        assertTrue(p.length() >= 6, "PNR should be at least 6 chars");
+    void generate_returnsValidPnr() {
+        String pnr = PnrGenerator.generate();
+
+        assertThat(pnr)
+                .as("PNR should be non-null, upper case, non-blank, and length ≥ 6")
+                .isNotNull()
+                .isNotBlank()
+                .isEqualTo(pnr.toUpperCase())
+                .hasSizeGreaterThanOrEqualTo(6);
     }
 }

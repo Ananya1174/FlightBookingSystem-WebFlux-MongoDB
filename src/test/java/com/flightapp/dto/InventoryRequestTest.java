@@ -14,7 +14,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
- class InventoryRequestTest {
+class InventoryRequestTest {
 
     private Validator validator;
 

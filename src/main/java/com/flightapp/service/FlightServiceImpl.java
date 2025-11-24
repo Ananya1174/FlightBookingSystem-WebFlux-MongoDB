@@ -57,7 +57,7 @@ public class FlightServiceImpl implements FlightService {
             return Mono.error(new IllegalStateException(ERR_ARRIVAL_BEFORE_DEPARTURE));
         }
 
-        if (inventory.getTotalSeats() == null || inventory.getTotalSeats() <= 0) {
+        if (inventory.getTotalSeats() <= 0) {
             return Mono.error(new IllegalStateException(ERR_TOTAL_SEATS_POSITIVE));
         }
 
