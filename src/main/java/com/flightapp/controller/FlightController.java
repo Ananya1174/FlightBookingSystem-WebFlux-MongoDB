@@ -85,12 +85,21 @@ public class FlightController {
 
     // GET HISTORY
     @GetMapping("/booking/history/{emailId}")
-    public Flux<Booking> history(@PathVariable String emailId,
-                                 @RequestParam(name = "includeCancelled", defaultValue = "false")
-                                 boolean includeCancelled) {
-
+    public Flux<Map<String,Object>> history(@PathVariable String emailId) {
         return flightService.findByEmail(emailId)
-                .filter(b -> includeCancelled || !Boolean.TRUE.equals(b.isCanceled()));
+            .map(b -> {
+                Map<String,Object> m = new HashMap<>();
+                m.put("pnr", b.getPnr());
+                m.put("name", b.getName());
+                m.put("email", b.getEmail());
+                m.put("flightId", b.getFlightId());
+                m.put("journeyDate", b.getJourneyDate());
+                m.put("seatNumbers", b.getSeatNumbers());
+                m.put("status", Boolean.TRUE.equals(b.isCanceled()) ? "CANCELLED" : "ACTIVE");
+                // optionally include canceledAt, cancelReason etc.
+                if (b.getCanceledAt() != null) m.put("canceledAt", b.getCanceledAt());
+                return m;
+            });
     }
 
     // CANCEL: Owner-only. Email must be present in header X-User-Email and in request body (email).
@@ -98,29 +107,14 @@ public class FlightController {
     @DeleteMapping("/booking/cancel/{pnr}")
     public Mono<ResponseEntity<Map<String, Object>>> cancel(
             @PathVariable String pnr,
-            @RequestHeader(name = "X-User-Email", required = true) String headerEmail,
-             ) {
+            @RequestHeader(name = "X-User-Email") String headerEmail) {
 
-        String bodyEmail = body.get("email");
-
-        if (bodyEmail == null || bodyEmail.isBlank()) {
-            Map<String, Object> err = new HashMap<>();
-            err.put("error", "Email required in request body");
-            return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err));
-        }
-
-        if (!headerEmail.equalsIgnoreCase(bodyEmail)) {
-            Map<String, Object> err = new HashMap<>();
-            err.put("error", "Header email and body email must match");
-            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(err));
-        }
-
-        return flightService.cancelByPnrAndEmail(pnr, bodyEmail)
+        return flightService.cancelByPnrAndEmail(pnr, headerEmail)
                 .then(Mono.fromSupplier(() -> {
                     Map<String, Object> response = new HashMap<>();
                     response.put("message", "Booking cancelled successfully");
                     response.put("pnr", pnr);
-                    return ResponseEntity.ok(response); // 200
+                    return ResponseEntity.ok(response);
                 }))
                 .onErrorResume(err -> {
                     Map<String, Object> error = new HashMap<>();
@@ -129,15 +123,12 @@ public class FlightController {
                     if (err instanceof IllegalArgumentException) {
                         return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).body(error));
                     }
-
                     if (err instanceof IllegalStateException) {
                         return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error));
                     }
-
                     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error));
                 });
     }
-
     // UPDATE Booking: Owner-only. Email must be present in header and body.
     // This updates passenger details, meal preference, name and optionally seatNumbers (if seats available).
     @PutMapping("/booking/{pnr}")
