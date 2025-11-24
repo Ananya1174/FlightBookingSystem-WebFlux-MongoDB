@@ -99,7 +99,7 @@ public class FlightController {
     public Mono<ResponseEntity<Map<String, Object>>> cancel(
             @PathVariable String pnr,
             @RequestHeader(name = "X-User-Email", required = true) String headerEmail,
-            @RequestBody @Valid Map<String, String> body ) {
+             ) {
 
         String bodyEmail = body.get("email");
 
