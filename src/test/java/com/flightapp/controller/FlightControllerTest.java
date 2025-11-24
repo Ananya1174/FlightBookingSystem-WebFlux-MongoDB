@@ -97,8 +97,8 @@ import static org.mockito.Mockito.*;
 
     @Test
      void cancel_ownerMismatch_returns401() {
-        when(flightService.cancelByPnrAndEmail(eq("PNR1"), eq("wrong@example.com")))
-            .thenReturn(Mono.error(new IllegalStateException("Only owner can cancel the booking")));
+    	when(flightService.cancelByPnrAndEmail("PNR1", "wrong@example.com"))
+    	.thenReturn(Mono.error(new IllegalStateException("Only owner can cancel the booking")));
 
         webClient.method(HttpMethod.DELETE)
             .uri("/api/flight/booking/cancel/PNR1")

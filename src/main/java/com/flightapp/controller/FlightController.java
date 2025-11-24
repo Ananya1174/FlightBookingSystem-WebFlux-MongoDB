@@ -96,7 +96,7 @@ public class FlightController {
     @GetMapping("/ticket/{pnr}")
     public Mono<ResponseEntity<Booking>> ticket(@PathVariable String pnr) {
         return flightService.findByPnr(pnr)
-                .map(b -> ResponseEntity.ok(b))
+        		.map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.<Booking>notFound().build());
     }
 

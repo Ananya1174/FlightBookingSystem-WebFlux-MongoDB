@@ -14,7 +14,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
-import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,7 +49,7 @@ public class FlightServiceImpl implements FlightService {
         inventory.setAvailableSeats(
                 java.util.stream.IntStream.rangeClosed(1, inventory.getTotalSeats())
                         .mapToObj(i -> "S" + i)
-                        .collect(Collectors.toList())
+                        .toList()
         );
 
         return inventoryRepository.save(inventory);
@@ -141,68 +140,93 @@ public class FlightServiceImpl implements FlightService {
     public Mono<Booking> updateBooking(String pnr, BookingUpdateRequest req) {
         return bookingRepository.findByPnr(pnr)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("PNR not found")))
-                .flatMap(existingBooking -> {
-                    if (!existingBooking.getEmail().equalsIgnoreCase(req.getEmail())) {
-                        return Mono.error(new IllegalStateException("Only owner can update the booking"));
-                    }
-                    if (existingBooking.isCanceled()) {
-                        return Mono.error(new IllegalStateException("Cannot update a cancelled booking"));
-                    }
-                    LocalDateTime now = LocalDateTime.now();
-                    if (!existingBooking.getJourneyDate().minusHours(24).isAfter(now)) {
-                        return Mono.error(new IllegalStateException("Updates not allowed within 24 hrs of journey"));
-                    }
-
-                    // If seatNumbers provided -> handle seat change
-                    List<String> newSeats = req.getSeatNumbers();
-                    if (newSeats != null && !newSeats.isEmpty()) {
-                        // passenger count must match seat count
-                        if (req.getPassengers() != null && req.getPassengers().size() != newSeats.size()) {
-                            return Mono.error(new IllegalArgumentException("Passengers count must match new seats"));
-                        }
-                        // fetch inventory to check seat availability and swap seats
-                        return inventoryRepository.findById(existingBooking.getFlightId())
-                                .switchIfEmpty(Mono.error(new IllegalArgumentException("Flight not found for booking")))
-                                .flatMap(inv -> {
-                                    // create an availability set that treats currently booked seats as available (we're swapping)
-                                    // release existing seats back temporarily
-                                    List<String> tempAvailable = new ArrayList<>(inv.getAvailableSeats());
-                                    // add back existing booking seats
-                                    tempAvailable.addAll(existingBooking.getSeatNumbers());
-
-                                    // check all requested seats are in tempAvailable
-                                    if (!tempAvailable.containsAll(newSeats)) {
-                                        return Mono.error(new IllegalStateException("Requested seats not available"));
+                .flatMap(existingBooking ->
+                        validateUpdatePreconditions(existingBooking, req)
+                                .flatMap(v -> {
+                                    List<String> newSeats = req.getSeatNumbers();
+                                    if (newSeats != null && !newSeats.isEmpty()) {
+                                        // delegate the entire seat-change flow to a helper
+                                        return handleSeatChange(existingBooking, req);
                                     }
 
-                                    // effect seats change: add old seats back to inventory and remove new seats
-                                    // remove duplicates carefully
-                                    List<String> invSeats = new ArrayList<>(inv.getAvailableSeats());
-                                    // add old seats (if not already present)
-                                    for (String s : existingBooking.getSeatNumbers()) {
-                                        if (!invSeats.contains(s)) invSeats.add(s);
-                                    }
-                                    // now remove newSeats from invSeats (reserve them)
-                                    invSeats.removeAll(newSeats);
-
-                                    // save inventory and update booking fields
-                                    inv.setAvailableSeats(invSeats);
-                                    existingBooking.setSeatNumbers(newSeats);
+                                    // No seat change: update passengers/name/meal only
                                     if (req.getPassengers() != null) existingBooking.setPassengers(req.getPassengers());
                                     if (req.getName() != null) existingBooking.setName(req.getName());
                                     if (req.getMealVeg() != null) existingBooking.setMealVeg(req.getMealVeg());
 
-                                    return inventoryRepository.save(inv)
-                                            .then(bookingRepository.save(existingBooking));
-                                });
+                                    return bookingRepository.save(existingBooking);
+                                })
+                );
+    }
+
+    // --- helpers extracted to reduce nesting / cognitive complexity ---
+    private Mono<Void> validateUpdatePreconditions(Booking existingBooking, BookingUpdateRequest req) {
+        if (!existingBooking.getEmail().equalsIgnoreCase(req.getEmail())) {
+            return Mono.error(new IllegalStateException("Only the booking owner can perform this update"));
+        }
+        if (existingBooking.isCanceled()) {
+            return Mono.error(new IllegalStateException("Cannot update a booking that is already cancelled"));
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (!existingBooking.getJourneyDate().minusHours(24).isAfter(now)) {
+            return Mono.error(new IllegalStateException("Updates are not allowed within 24 hours of the journey"));
+        }
+        return Mono.empty();
+    }
+
+    private List<String> buildTempAvailability(AirlineInventory inv, Booking existingBooking) {
+        List<String> tempAvailable = new ArrayList<>();
+        if (inv.getAvailableSeats() != null) tempAvailable.addAll(inv.getAvailableSeats());
+        if (existingBooking.getSeatNumbers() != null) tempAvailable.addAll(existingBooking.getSeatNumbers());
+        return tempAvailable;
+    }
+
+    private List<String> mergeInventoryWithOldSeats(List<String> invSeats, List<String> oldSeats) {
+        if (invSeats == null) invSeats = new ArrayList<>();
+        if (oldSeats == null || oldSeats.isEmpty()) return invSeats;
+        for (String s : oldSeats) {
+            if (!invSeats.contains(s)) {
+                invSeats.add(s);
+            }
+        }
+        return invSeats;
+    }
+
+    // helper that encapsulates the entire seat-change logic (previously inline)
+    private Mono<Booking> handleSeatChange(Booking existingBooking, BookingUpdateRequest req) {
+        // passenger count check (same as before)
+        List<String> newSeats = req.getSeatNumbers();
+        if (req.getPassengers() != null && req.getPassengers().size() != newSeats.size()) {
+            return Mono.error(new IllegalArgumentException("Passenger count must match the number of requested seats"));
+        }
+
+        return inventoryRepository.findById(existingBooking.getFlightId())
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Flight not found for this booking")))
+                .flatMap(inv -> {
+                    // create an availability set that treats currently booked seats as available (we're swapping)
+                    List<String> tempAvailable = buildTempAvailability(inv, existingBooking);
+
+                    // check all requested seats are in tempAvailable
+                    if (!tempAvailable.containsAll(newSeats)) {
+                        return Mono.error(new IllegalStateException("One or more requested seats are not available"));
                     }
 
-                    // No seat change: update passengers/name/meal only
+                    // effect seats change: add old seats back to inventory and remove new seats
+                    List<String> invSeats = new ArrayList<>(inv.getAvailableSeats() == null ? List.of() : inv.getAvailableSeats());
+                    invSeats = mergeInventoryWithOldSeats(invSeats, existingBooking.getSeatNumbers());
+
+                    // now remove newSeats from invSeats (reserve them)
+                    invSeats.removeAll(newSeats);
+
+                    // save inventory and update booking fields
+                    inv.setAvailableSeats(invSeats);
+                    existingBooking.setSeatNumbers(new ArrayList<>(newSeats)); // defensive copy
                     if (req.getPassengers() != null) existingBooking.setPassengers(req.getPassengers());
                     if (req.getName() != null) existingBooking.setName(req.getName());
                     if (req.getMealVeg() != null) existingBooking.setMealVeg(req.getMealVeg());
 
-                    return bookingRepository.save(existingBooking);
+                    return inventoryRepository.save(inv)
+                            .then(bookingRepository.save(existingBooking));
                 });
     }
 }

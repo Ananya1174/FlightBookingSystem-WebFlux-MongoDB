@@ -1,6 +1,8 @@
 package com.flightapp.config;
 
 import org.springframework.boot.ApplicationArguments;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +19,7 @@ import java.time.LocalDateTime;
 public class DataInitializer implements ApplicationRunner {
 
   private final ReactiveMongoTemplate mongoTemplate;
+  private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
 
   public DataInitializer(ReactiveMongoTemplate mongoTemplate) {
     this.mongoTemplate = mongoTemplate;
@@ -32,8 +35,8 @@ public class DataInitializer implements ApplicationRunner {
 
     // Create index on flightNumber (non-unique), and on origin+destination+departure to speed search
     Mono<Void> idxs = Mono.when(
-        Mono.fromRunnable(() -> invIdxOps.ensureIndex(new Index().on("flightNumber", org.springframework.data.domain.Sort.Direction.ASC)).block()),
-        Mono.fromRunnable(() -> invIdxOps.ensureIndex(new Index().on("origin", org.springframework.data.domain.Sort.Direction.ASC)
+        Mono.fromRunnable(() -> invIdxOps.createIndex(new Index().on("flightNumber", org.springframework.data.domain.Sort.Direction.ASC)).block()),
+        Mono.fromRunnable(() -> invIdxOps.createIndex(new Index().on("origin", org.springframework.data.domain.Sort.Direction.ASC)
                 .on("destination", org.springframework.data.domain.Sort.Direction.ASC)
                 .on("departure", org.springframework.data.domain.Sort.Direction.ASC)).block())
     ).then();
@@ -60,7 +63,6 @@ public class DataInitializer implements ApplicationRunner {
       return Mono.empty();
     }).subscribe(
       v -> {},
-      err -> System.err.println("DataInitializer error: " + err.getMessage())
-    );
+      err -> log.error("DataInitializer error: {}", err.getMessage())    );
   }
 }

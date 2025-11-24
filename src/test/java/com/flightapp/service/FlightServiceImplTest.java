@@ -150,7 +150,7 @@ class FlightServiceImplTest {
     }
 
     @Test
-    public void cancel_within24hrs_fails() {
+    void cancel_within24hrs_fails() {
         Booking existing = new Booking();
         existing.setPnr("PNR1");
         existing.setEmail("owner@example.com");
