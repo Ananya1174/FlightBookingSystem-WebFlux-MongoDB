@@ -30,13 +30,11 @@ public class FlightController {
         this.flightService = flightService;
     }
     private static final String ERROR_KEY = "error";
-    // ADD INVENTORY (admin)
     @PostMapping("/airline/inventory/add")
     public Mono<ResponseEntity<com.flightapp.model.AirlineInventory>> addInventory(
             @RequestBody @Valid com.flightapp.dto.InventoryRequest req,
             UriComponentsBuilder uriBuilder) {
 
-        // Map DTO -> entity (or delegate mapping to service)
         com.flightapp.model.AirlineInventory inv = new com.flightapp.model.AirlineInventory();
         inv.setAirline(req.getAirline());
         inv.setAirlineLogoUrl(req.getAirlineLogoUrl());
@@ -47,12 +45,10 @@ public class FlightController {
         inv.setArrival(req.getArrival());
         inv.setTotalSeats(req.getTotalSeats());
         inv.setPrice(req.getPrice());
-        // If client passed seats use them, otherwise service may create default seat map
         if (req.getAvailableSeats() != null && !req.getAvailableSeats().isEmpty()) {
             inv.setAvailableSeats(new java.util.ArrayList<>(req.getAvailableSeats()));
         }
 
-        // delegate to service to finalize/save
         return flightService.addInventory(inv)
             .map(saved -> {
                 var location = uriBuilder.path("/api/v1.0/flight/airline/inventory/{id}")
@@ -61,7 +57,6 @@ public class FlightController {
             });
     }
 
-    // SEARCH
     @PostMapping("/search")
     public Flux<AirlineInventory> search(@RequestBody @Valid SearchRequest req) {
 
@@ -76,7 +71,6 @@ public class FlightController {
         );
     }
 
-    // BOOK
     @PostMapping("/booking/{flightId}")
     public Mono<ResponseEntity<Booking>> book(@PathVariable String flightId,
                                               @RequestBody @Valid BookingRequest req,
@@ -92,7 +86,6 @@ public class FlightController {
                 });
     }
 
-    // GET TICKET BY PNR
     @GetMapping("/ticket/{pnr}")
     public Mono<ResponseEntity<Booking>> ticket(@PathVariable String pnr) {
         return flightService.findByPnr(pnr)
@@ -100,7 +93,6 @@ public class FlightController {
                 .defaultIfEmpty(ResponseEntity.<Booking>notFound().build());
     }
 
-    // GET HISTORY
     @GetMapping("/booking/history/{emailId}")
     public Flux<Map<String,Object>> history(@PathVariable String emailId) {
         return flightService.findByEmail(emailId)
@@ -119,8 +111,6 @@ public class FlightController {
             });
     }
 
-    // CANCEL: Owner-only. Email must be present in header X-User-Email and in request body (email).
-    // Returns 200 with message on success; returns JSON error messages on failure.
     @DeleteMapping("/booking/cancel/{pnr}")
     public Mono<ResponseEntity<Map<String, Object>>> cancel(
             @PathVariable String pnr,
@@ -146,8 +136,6 @@ public class FlightController {
                     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error));
                 });
     }
-    // UPDATE Booking: Owner-only. Email must be present in header and body.
-    // This updates passenger details, meal preference, name and optionally seatNumbers (if seats available).
     @PutMapping("/booking/{pnr}")
     public Mono<ResponseEntity<Map<String, Object>>> updateBooking(
             @PathVariable String pnr,
