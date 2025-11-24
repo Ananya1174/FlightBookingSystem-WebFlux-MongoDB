@@ -10,13 +10,15 @@ import com.flightapp.repository.BookingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Arrays;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 public class FlightServiceImplTest {
@@ -40,7 +42,7 @@ public class FlightServiceImplTest {
         inv.setOrigin("AAA");
         inv.setDestination("BBB");
         inv.setDeparture(LocalDateTime.now().plusDays(2));
-        inv.setArrival(LocalDateTime.now().plusDays(2).plusHours(2));
+        inv.setArrival(inv.getDeparture().plusHours(1));
         inv.setTotalSeats(5);
         inv.setPrice(1000.0);
 
@@ -59,7 +61,7 @@ public class FlightServiceImplTest {
         inv.setOrigin("AAA");
         inv.setDestination("AAA");
         inv.setDeparture(LocalDateTime.now().plusDays(2));
-        inv.setArrival(LocalDateTime.now().plusDays(2).plusHours(1));
+        inv.setArrival(inv.getDeparture().plusHours(1));
         inv.setTotalSeats(5);
         inv.setPrice(1000.0);
 
@@ -79,7 +81,7 @@ public class FlightServiceImplTest {
         inv.setDeparture(LocalDateTime.now().plusDays(2));
         inv.setArrival(inv.getDeparture().plusHours(2));
         inv.setTotalSeats(5);
-        inv.setAvailableSeats(Arrays.asList("S1", "S2", "S3", "S4", "S5"));
+        inv.setAvailableSeats(new ArrayList<>(List.of("S1", "S2", "S3", "S4", "S5")));
         inv.setPrice(200.0);
 
         BookingRequest req = new BookingRequest();
@@ -92,16 +94,11 @@ public class FlightServiceImplTest {
         req.setMealVeg(true);
 
         when(inventoryRepo.findById("flight-1")).thenReturn(Mono.just(inv));
-        // when inventory saved after seat removal, return updated inv
-        when(inventoryRepo.save(any(AirlineInventory.class))).thenReturn(Mono.just(inv));
-        when(bookingRepo.save(any(Booking.class))).thenAnswer(invocation -> {
-            Booking b = invocation.getArgument(0);
-            return Mono.just(b);
-        });
+        when(inventoryRepo.save(any(AirlineInventory.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(bookingRepo.save(any(Booking.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
         StepVerifier.create(service.book("flight-1", req))
             .assertNext(booking -> {
-                // booking must have pnr and seat
                 assert booking.getPnr() != null;
                 assert booking.getSeatNumbers().contains("S1");
                 assert booking.getEmail().equals("tester@example.com");
@@ -116,7 +113,9 @@ public class FlightServiceImplTest {
     public void book_seatUnavailable_fails() {
         AirlineInventory inv = new AirlineInventory();
         inv.setId("flight-1");
-        inv.setAvailableSeats(Arrays.asList("S2","S3"));
+        inv.setDeparture(LocalDateTime.now().plusDays(2));
+        inv.setArrival(inv.getDeparture().plusHours(2));
+        inv.setAvailableSeats(new ArrayList<>(List.of("S2", "S3")));
 
         BookingRequest req = new BookingRequest();
         req.setName("Tester");
@@ -180,7 +179,6 @@ public class FlightServiceImplTest {
         StepVerifier.create(service.cancelByPnrAndEmail("PNR1", "owner@example.com"))
             .verifyComplete();
 
-        // verify save called and booking canceled
         ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepo, times(1)).save(captor.capture());
         Booking saved = captor.getValue();

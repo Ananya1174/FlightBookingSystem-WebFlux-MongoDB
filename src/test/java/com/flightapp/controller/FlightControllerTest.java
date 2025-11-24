@@ -3,14 +3,18 @@ package com.flightapp.controller;
 import com.flightapp.service.FlightService;
 import com.flightapp.model.AirlineInventory;
 import com.flightapp.model.Booking;
+import com.flightapp.model.Passenger;
 import com.flightapp.dto.BookingRequest;
 import com.flightapp.dto.BookingUpdateRequest;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
+
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.BodyInserters;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -37,9 +41,18 @@ public class FlightControllerTest {
         AirlineInventory inv = new AirlineInventory();
         inv.setId("id-1");
         inv.setAirline("Indigo");
+        inv.setFlightNumber("IN1");
+        inv.setOrigin("HYD");
+        inv.setDestination("BLR");
+        inv.setDeparture(LocalDateTime.now().plusDays(2));
+        inv.setArrival(inv.getDeparture().plusHours(2));
+        inv.setTotalSeats(30);
+        inv.setPrice(4500.0);
+
         when(flightService.addInventory(any(AirlineInventory.class))).thenReturn(Mono.just(inv));
 
         webClient.post().uri("/api/flight/airline/inventory/add")
+            .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(inv)
             .exchange()
             .expectStatus().isCreated()
@@ -62,8 +75,20 @@ public class FlightControllerTest {
         booking.setPnr("PNR1");
         when(flightService.book(eq("flight-1"), any(BookingRequest.class))).thenReturn(Mono.just(booking));
 
+        BookingRequest req = new BookingRequest();
+        req.setName("Test");
+        req.setEmail("test@example.com");
+        Passenger p = new Passenger();
+        p.setName("P1");
+        p.setGender("F");
+        p.setAge(25);
+        req.setPassengers(List.of(p));
+        req.setSeatNumbers(List.of("S1"));
+        req.setMealVeg(true);
+
         webClient.post().uri("/api/flight/booking/flight-1")
-            .bodyValue(new BookingRequest())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(req)
             .exchange()
             .expectStatus().isCreated()
             .expectBody()
@@ -75,8 +100,11 @@ public class FlightControllerTest {
         when(flightService.cancelByPnrAndEmail(eq("PNR1"), eq("wrong@example.com")))
             .thenReturn(Mono.error(new IllegalStateException("Only owner can cancel the booking")));
 
-        webClient.delete().uri("/api/flight/booking/cancel/PNR1")
+        webClient.method(HttpMethod.DELETE)
+            .uri("/api/flight/booking/cancel/PNR1")
             .header("X-User-Email", "wrong@example.com")
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(BodyInserters.fromValue(Collections.singletonMap("email", "wrong@example.com")))
             .exchange()
             .expectStatus().isBadRequest()
             .expectBody()
@@ -95,6 +123,7 @@ public class FlightControllerTest {
 
         webClient.put().uri("/api/flight/booking/PNR2")
             .header("X-User-Email", "owner@example.com")
+            .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(req)
             .exchange()
             .expectStatus().isOk()
