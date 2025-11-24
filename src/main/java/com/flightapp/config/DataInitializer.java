@@ -27,13 +27,8 @@ public class DataInitializer implements ApplicationRunner {
 
   @Override
   public void run(ApplicationArguments args) {
-    // Ensure unique index on booking.pnr and index on booking.email
-    // Booking collection indexing handled elsewhere or you can add similar code for Booking class.
-    // Here we add an index example for Inventory (flightNumber), and you can add for bookings similarly.
-
     ReactiveIndexOperations invIdxOps = mongoTemplate.indexOps(AirlineInventory.class);
 
-    // Create index on flightNumber (non-unique), and on origin+destination+departure to speed search
     Mono<Void> idxs = Mono.when(
         Mono.fromRunnable(() -> invIdxOps.createIndex(new Index().on("flightNumber", org.springframework.data.domain.Sort.Direction.ASC)).block()),
         Mono.fromRunnable(() -> invIdxOps.createIndex(new Index().on("origin", org.springframework.data.domain.Sort.Direction.ASC)
@@ -41,7 +36,6 @@ public class DataInitializer implements ApplicationRunner {
                 .on("departure", org.springframework.data.domain.Sort.Direction.ASC)).block())
     ).then();
 
-    // Optionally insert sample inventory if no inventories exist
     Mono<Long> countMono = mongoTemplate.count(new org.springframework.data.mongodb.core.query.Query(), AirlineInventory.class);
 
     idxs.then(countMono).flatMap(cnt -> {
@@ -56,7 +50,6 @@ public class DataInitializer implements ApplicationRunner {
         sample.setArrival(sample.getDeparture().plusHours(1).plusMinutes(30));
         sample.setTotalSeats(30);
         sample.setPrice(4500.0);
-        // availableSeats will be created by your service if null — but you can set initial as well
         sample.setAvailableSeats(java.util.stream.IntStream.rangeClosed(1, 30).mapToObj(i -> "S" + i).toList());
         return mongoTemplate.insert(sample).then();
       }
