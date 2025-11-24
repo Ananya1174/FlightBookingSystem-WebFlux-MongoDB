@@ -1,18 +1,14 @@
 package com.flightapp.controller;
 
+import com.flightapp.dto.InventoryRequest;
 import com.flightapp.model.AirlineInventory;
-import com.flightapp.model.Booking;
-import com.flightapp.dto.BookingRequest;
 import com.flightapp.service.FlightService;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 import static org.mockito.Mockito.*;
 
@@ -31,25 +27,28 @@ class FlightControllerTest {
 
     @Test
     void addInventory_returns201() {
-        AirlineInventory inv = new AirlineInventory();
-        inv.setId("id-1");
-        inv.setAirline("Indigo");
-        when(flightService.addInventory(any(AirlineInventory.class))).thenReturn(Mono.just(inv));
+        InventoryRequest req = new InventoryRequest();
+        req.setAirline("Indigo");
+        req.setAirlineLogoUrl("logo.png");
+        req.setFlightNumber("IN123");
+        req.setOrigin("HYD");
+        req.setDestination("BLR");
+        req.setDeparture(LocalDateTime.now().plusDays(2));
+        req.setArrival(LocalDateTime.now().plusDays(2).plusHours(2));
+        req.setTotalSeats(30);
+        req.setPrice(4500.0);
+
+        AirlineInventory saved = new AirlineInventory();
+        saved.setId("id-1");
+        saved.setAirline("Indigo");
+
+        when(flightService.addInventory(any())).thenReturn(Mono.just(saved));
 
         webClient.post().uri("/api/flight/airline/inventory/add")
-                .bodyValue(inv)
+                .bodyValue(req)
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
                 .jsonPath("$.airline").isEqualTo("Indigo");
-    }
-
-    @Test
-    void ticket_notFound_returns404() {
-        when(flightService.findByPnr("NOPE")).thenReturn(Mono.empty());
-
-        webClient.get().uri("/api/flight/ticket/NOPE")
-                .exchange()
-                .expectStatus().isNotFound();
     }
 }

@@ -7,15 +7,14 @@ import com.flightapp.dto.BookingRequest;
 import com.flightapp.dto.BookingUpdateRequest;
 import com.flightapp.repository.InventoryRepository;
 import com.flightapp.repository.BookingRepository;
-import com.flightapp.util.PnrGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
@@ -43,7 +42,8 @@ class FlightServiceImplTest {
         inv.setDeparture(LocalDateTime.now().plusDays(2));
         inv.setArrival(inv.getDeparture().plusHours(2));
         inv.setTotalSeats(3);
-        inv.setAvailableSeats(List.of("S1","S2","S3"));
+        // MUTABLE list to allow removeAll() in service
+        inv.setAvailableSeats(new ArrayList<>(List.of("S1","S2","S3")));
         inv.setPrice(1000.0);
         return inv;
     }
@@ -53,7 +53,6 @@ class FlightServiceImplTest {
         AirlineInventory inv = sampleInventory();
 
         when(inventoryRepo.findById("f-1")).thenReturn(Mono.just(inv));
-        // when saving inventory return it; when saving booking return booking
         when(inventoryRepo.save(any())).thenReturn(Mono.just(inv));
         when(bookingRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
 
@@ -137,8 +136,9 @@ class FlightServiceImplTest {
         existing.setEmail("owner@example.com");
         existing.setCanceled(false);
         existing.setJourneyDate(LocalDateTime.now().plusDays(5));
-        existing.setSeatNumbers(List.of("S1"));
+        existing.setSeatNumbers(new ArrayList<>(List.of("S1")));
         existing.setPassengers(List.of(new Passenger()));
+        existing.setFlightId("f-1"); // ensure flightId exists
 
         when(bookingRepo.findByPnr("PNR3")).thenReturn(Mono.just(existing));
         when(bookingRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
@@ -162,14 +162,16 @@ class FlightServiceImplTest {
         existing.setEmail("owner@example.com");
         existing.setCanceled(false);
         existing.setJourneyDate(LocalDateTime.now().plusDays(5));
-        existing.setSeatNumbers(List.of("S1"));
+        existing.setSeatNumbers(new ArrayList<>(List.of("S1")));
         existing.setPassengers(List.of(new Passenger()));
+        existing.setFlightId("f-1");
+
         when(bookingRepo.findByPnr("PNR4")).thenReturn(Mono.just(existing));
 
         AirlineInventory inv = sampleInventory();
-        inv.setAvailableSeats(List.of("S2","S3")); // S1 is with existing booking
-        inv.setId(existing.getFlightId() != null ? existing.getFlightId() : "f-1");
-        when(inventoryRepo.findById(inv.getId())).thenReturn(Mono.just(inv));
+        inv.setId("f-1");
+        inv.setAvailableSeats(new ArrayList<>(List.of("S2","S3"))); // S1 currently booked
+        when(inventoryRepo.findById("f-1")).thenReturn(Mono.just(inv));
         when(inventoryRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
         when(bookingRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
 

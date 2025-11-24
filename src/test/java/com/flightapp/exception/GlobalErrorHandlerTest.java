@@ -10,7 +10,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class GlobalErrorHandlerTest {
+class GlobalErrorHandlerTest {
 
     private GlobalErrorHandler handler;
 
@@ -28,8 +28,10 @@ public class GlobalErrorHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isInstanceOf(Map.class);
-        assertThat(((Map<?, ?>) response.getBody()).get("error"))
-                .isEqualTo("bad request");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertThat(body).containsEntry("error", "bad request");
     }
 
     @Test
@@ -40,8 +42,10 @@ public class GlobalErrorHandlerTest {
         ResponseEntity<Object> response = result.block();
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(((Map<?, ?>) response.getBody()).get("error"))
-                .isEqualTo("state error");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertThat(body).containsEntry("error", "state error");
     }
 
     @Test
@@ -52,7 +56,9 @@ public class GlobalErrorHandlerTest {
         ResponseEntity<Object> response = result.block();
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
-        assertThat(((Map<?, ?>) response.getBody()).get("error"))
-                .isEqualTo("Internal server error");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertThat(body).containsEntry("error", "Internal server error");
     }
 }

@@ -14,7 +14,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class InventoryRequestTest {
+ class InventoryRequestTest {
 
     private Validator validator;
 
@@ -56,8 +56,8 @@ public class InventoryRequestTest {
         Set<ConstraintViolation<InventoryRequest>> violations = validator.validate(r);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations.iterator().next().getPropertyPath().toString())
-                .isEqualTo("airline");
+        assertThat(violations.iterator().next().getPropertyPath())
+                .hasToString("airline");
     }
 
     @Test
@@ -68,8 +68,8 @@ public class InventoryRequestTest {
         Set<ConstraintViolation<InventoryRequest>> violations = validator.validate(r);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations.iterator().next().getPropertyPath().toString())
-                .isEqualTo("flightNumber");
+        assertThat(violations.iterator().next().getPropertyPath())
+                .hasToString("flightNumber");
     }
 
     @Test
@@ -80,8 +80,8 @@ public class InventoryRequestTest {
         Set<ConstraintViolation<InventoryRequest>> violations = validator.validate(r);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations.iterator().next().getPropertyPath().toString())
-                .isEqualTo("origin");
+        assertThat(violations.iterator().next().getPropertyPath())
+                .hasToString("origin");
     }
 
     @Test
@@ -92,8 +92,8 @@ public class InventoryRequestTest {
         Set<ConstraintViolation<InventoryRequest>> violations = validator.validate(r);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations.iterator().next().getPropertyPath().toString())
-                .isEqualTo("destination");
+        assertThat(violations.iterator().next().getPropertyPath())
+                .hasToString("destination");
     }
 
     @Test
@@ -104,8 +104,8 @@ public class InventoryRequestTest {
         Set<ConstraintViolation<InventoryRequest>> violations = validator.validate(r);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations.iterator().next().getPropertyPath().toString())
-                .isEqualTo("departure");
+        assertThat(violations.iterator().next().getPropertyPath())
+                .hasToString("departure");
     }
 
     @Test
@@ -116,8 +116,8 @@ public class InventoryRequestTest {
         Set<ConstraintViolation<InventoryRequest>> violations = validator.validate(r);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations.iterator().next().getPropertyPath().toString())
-                .isEqualTo("arrival");
+        assertThat(violations.iterator().next().getPropertyPath())
+                .hasToString("arrival");
     }
 
     @Test
@@ -128,8 +128,8 @@ public class InventoryRequestTest {
         Set<ConstraintViolation<InventoryRequest>> violations = validator.validate(r);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations.iterator().next().getPropertyPath().toString())
-                .isEqualTo("totalSeats");
+        assertThat(violations.iterator().next().getPropertyPath())
+                .hasToString("totalSeats");
     }
 
     @Test
@@ -140,7 +140,7 @@ public class InventoryRequestTest {
         Set<ConstraintViolation<InventoryRequest>> violations = validator.validate(r);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations.iterator().next().getPropertyPath().toString())
-                .isEqualTo("price");
+        assertThat(violations.iterator().next().getPropertyPath())
+                .hasToString("price");
     }
 }
