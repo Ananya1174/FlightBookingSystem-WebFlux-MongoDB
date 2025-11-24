@@ -31,10 +31,8 @@ public class InventoryRequest {
     @PositiveOrZero
     private Double price;
 
-    // optional initial available seats (client rarely sets — service creates by default)
     private List<String> availableSeats;
 
-    // getters + setters
     public String getAirline() { return airline; }
     public void setAirline(String airline) { this.airline = airline; }
     public String getAirlineLogoUrl() { return airlineLogoUrl; }
