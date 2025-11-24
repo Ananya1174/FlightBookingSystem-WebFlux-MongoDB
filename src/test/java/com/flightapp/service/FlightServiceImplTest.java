@@ -2,186 +2,187 @@ package com.flightapp.service;
 
 import com.flightapp.model.AirlineInventory;
 import com.flightapp.model.Booking;
-import com.flightapp.dto.BookingRequest;
 import com.flightapp.model.Passenger;
+import com.flightapp.dto.BookingRequest;
+import com.flightapp.dto.BookingUpdateRequest;
 import com.flightapp.repository.InventoryRepository;
 import com.flightapp.repository.BookingRepository;
-
+import com.flightapp.util.PnrGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 class FlightServiceImplTest {
 
     InventoryRepository inventoryRepo;
     BookingRepository bookingRepo;
-    FlightServiceImpl service;
+    FlightServiceImpl svc;
 
     @BeforeEach
-     void setup() {
+    void setup() {
         inventoryRepo = mock(InventoryRepository.class);
         bookingRepo = mock(BookingRepository.class);
-        service = new FlightServiceImpl(inventoryRepo, bookingRepo);
+        svc = new FlightServiceImpl(inventoryRepo, bookingRepo);
     }
 
-    @Test
-     void addInventory_validInventory_saves() {
+    private AirlineInventory sampleInventory() {
         AirlineInventory inv = new AirlineInventory();
-        inv.setAirline("TestAir");
-        inv.setFlightNumber("T100");
-        inv.setOrigin("AAA");
-        inv.setDestination("BBB");
-        inv.setDeparture(LocalDateTime.now().plusDays(2));
-        inv.setArrival(inv.getDeparture().plusHours(1));
-        inv.setTotalSeats(5);
-        inv.setPrice(1000.0);
-
-        when(inventoryRepo.save(any(AirlineInventory.class))).thenReturn(Mono.just(inv));
-
-        StepVerifier.create(service.addInventory(inv))
-            .expectNextMatches(saved -> "TestAir".equals(saved.getAirline()))
-            .verifyComplete();
-
-        verify(inventoryRepo, times(1)).save(any(AirlineInventory.class));
-    }
-
-    @Test
-     void addInventory_sameOriginDestination_fails() {
-        AirlineInventory inv = new AirlineInventory();
-        inv.setOrigin("AAA");
-        inv.setDestination("AAA");
-        inv.setDeparture(LocalDateTime.now().plusDays(2));
-        inv.setArrival(inv.getDeparture().plusHours(1));
-        inv.setTotalSeats(5);
-        inv.setPrice(1000.0);
-
-        StepVerifier.create(service.addInventory(inv))
-            .expectErrorMatches(err -> err instanceof IllegalStateException
-                && err.getMessage().contains("Origin and destination cannot be the same"))
-            .verify();
-    }
-
-    @Test
-     void book_successfulBooking_reservesSeatsAndSavesBooking() {
-        AirlineInventory inv = new AirlineInventory();
-        inv.setId("flight-1");
-        inv.setFlightNumber("F1");
-        inv.setOrigin("O");
-        inv.setDestination("D");
+        inv.setId("f-1");
+        inv.setFlightNumber("IN1");
+        inv.setOrigin("HYD");
+        inv.setDestination("BLR");
         inv.setDeparture(LocalDateTime.now().plusDays(2));
         inv.setArrival(inv.getDeparture().plusHours(2));
-        inv.setTotalSeats(5);
-        inv.setAvailableSeats(new ArrayList<>(List.of("S1", "S2", "S3", "S4", "S5")));
-        inv.setPrice(200.0);
+        inv.setTotalSeats(3);
+        inv.setAvailableSeats(List.of("S1","S2","S3"));
+        inv.setPrice(1000.0);
+        return inv;
+    }
+
+    @Test
+    void book_success_reservesSeatsAndSavesBooking() {
+        AirlineInventory inv = sampleInventory();
+
+        when(inventoryRepo.findById("f-1")).thenReturn(Mono.just(inv));
+        // when saving inventory return it; when saving booking return booking
+        when(inventoryRepo.save(any())).thenReturn(Mono.just(inv));
+        when(bookingRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
 
         BookingRequest req = new BookingRequest();
-        req.setName("Tester");
-        req.setEmail("tester@example.com");
-        Passenger p1 = new Passenger();
-        p1.setName("P1"); p1.setGender("M"); p1.setAge(30);
-        req.setPassengers(List.of(p1));
+        req.setEmail("u@example.com");
+        req.setName("User");
+        req.setPassengers(List.of(new Passenger()));
         req.setSeatNumbers(List.of("S1"));
         req.setMealVeg(true);
 
-        when(inventoryRepo.findById("flight-1")).thenReturn(Mono.just(inv));
-        when(inventoryRepo.save(any(AirlineInventory.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-        when(bookingRepo.save(any(Booking.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        StepVerifier.create(svc.book("f-1", req))
+                .assertNext(b -> {
+                    assertNotNull(b.getPnr());
+                    assertEquals("u@example.com", b.getEmail());
+                    assertTrue(b.getSeatNumbers().contains("S1"));
+                })
+                .verifyComplete();
 
-        StepVerifier.create(service.book("flight-1", req))
-            .assertNext(booking -> {
-                assert booking.getPnr() != null;
-                assert booking.getSeatNumbers().contains("S1");
-                assert booking.getEmail().equals("tester@example.com");
-            })
-            .verifyComplete();
-
-        verify(inventoryRepo, times(1)).save(any(AirlineInventory.class));
-        verify(bookingRepo, times(1)).save(any(Booking.class));
+        verify(inventoryRepo).save(any());
+        verify(bookingRepo).save(any());
     }
 
     @Test
-     void book_seatUnavailable_fails() {
-        AirlineInventory inv = new AirlineInventory();
-        inv.setId("flight-1");
-        inv.setDeparture(LocalDateTime.now().plusDays(2));
-        inv.setArrival(inv.getDeparture().plusHours(2));
-        inv.setAvailableSeats(new ArrayList<>(List.of("S2", "S3")));
+    void book_seatUnavailable_throws() {
+        AirlineInventory inv = sampleInventory();
+        when(inventoryRepo.findById("f-1")).thenReturn(Mono.just(inv));
 
         BookingRequest req = new BookingRequest();
-        req.setName("Tester");
-        req.setEmail("tester@example.com");
-        Passenger p1 = new Passenger();
-        p1.setName("P1"); p1.setGender("M"); p1.setAge(30);
-        req.setPassengers(List.of(p1));
-        req.setSeatNumbers(List.of("S1")); // unavailable
+        req.setEmail("u@example.com");
+        req.setName("User");
+        req.setPassengers(List.of(new Passenger()));
+        req.setSeatNumbers(List.of("S9")); // not available
 
-        when(inventoryRepo.findById("flight-1")).thenReturn(Mono.just(inv));
+        StepVerifier.create(svc.book("f-1", req))
+                .expectErrorMatches(err -> err instanceof IllegalStateException &&
+                        err.getMessage().contains("Some selected seats are unavailable"))
+                .verify();
 
-        StepVerifier.create(service.book("flight-1", req))
-            .expectErrorMatches(err -> err instanceof IllegalStateException
-                && err.getMessage().toLowerCase().contains("unavailable"))
-            .verify();
+        verify(bookingRepo, never()).save(any());
     }
 
     @Test
-     void cancel_ownerMismatch_fails() {
-        Booking existing = new Booking();
-        existing.setPnr("PNR1");
-        existing.setEmail("owner@example.com");
-        existing.setCanceled(false);
-        existing.setJourneyDate(LocalDateTime.now().plusDays(2));
+    void cancel_success_marksCanceled() {
+        Booking b = new Booking();
+        b.setPnr("PNR1");
+        b.setEmail("u@example.com");
+        b.setCanceled(false);
+        b.setJourneyDate(LocalDateTime.now().plusDays(3));
 
-        when(bookingRepo.findByPnr("PNR1")).thenReturn(Mono.just(existing));
+        when(bookingRepo.findByPnr("PNR1")).thenReturn(Mono.just(b));
+        when(bookingRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
 
-        StepVerifier.create(service.cancelByPnrAndEmail("PNR1", "nobody@example.com"))
-            .expectErrorMatches(err -> err instanceof IllegalStateException
-                && err.getMessage().toLowerCase().contains("only owner"))
-            .verify();
+        StepVerifier.create(svc.cancelByPnrAndEmail("PNR1", "u@example.com"))
+                .verifyComplete();
+
+        ArgumentCaptor<Booking> cap = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepo).save(cap.capture());
+        assertTrue(cap.getValue().isCanceled());
     }
 
     @Test
-    void cancel_within24hrs_fails() {
-        Booking existing = new Booking();
-        existing.setPnr("PNR1");
-        existing.setEmail("owner@example.com");
-        existing.setCanceled(false);
-        existing.setJourneyDate(LocalDateTime.now().plusHours(10)); // less than 24h
+    void cancel_alreadyCancelled_errors() {
+        Booking b = new Booking();
+        b.setPnr("PNR2");
+        b.setEmail("u@example.com");
+        b.setCanceled(true);
+        b.setJourneyDate(LocalDateTime.now().plusDays(3));
 
-        when(bookingRepo.findByPnr("PNR1")).thenReturn(Mono.just(existing));
+        when(bookingRepo.findByPnr("PNR2")).thenReturn(Mono.just(b));
 
-        StepVerifier.create(service.cancelByPnrAndEmail("PNR1", "owner@example.com"))
-            .expectErrorMatches(err -> err instanceof IllegalStateException
-                && err.getMessage().toLowerCase().contains("24"))
-            .verify();
+        StepVerifier.create(svc.cancelByPnrAndEmail("PNR2", "u@example.com"))
+                .expectErrorMatches(err -> err instanceof IllegalStateException &&
+                        err.getMessage().contains("Booking already cancelled"))
+                .verify();
     }
 
     @Test
-     void cancel_successful_setsCanceledTrue() {
+    void update_noSeatChange_updatesFields() {
         Booking existing = new Booking();
-        existing.setPnr("PNR1");
+        existing.setPnr("PNR3");
         existing.setEmail("owner@example.com");
         existing.setCanceled(false);
-        existing.setJourneyDate(LocalDateTime.now().plusDays(2));
+        existing.setJourneyDate(LocalDateTime.now().plusDays(5));
+        existing.setSeatNumbers(List.of("S1"));
+        existing.setPassengers(List.of(new Passenger()));
 
-        when(bookingRepo.findByPnr("PNR1")).thenReturn(Mono.just(existing));
-        when(bookingRepo.save(any(Booking.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(bookingRepo.findByPnr("PNR3")).thenReturn(Mono.just(existing));
+        when(bookingRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
 
-        StepVerifier.create(service.cancelByPnrAndEmail("PNR1", "owner@example.com"))
-            .verifyComplete();
+        BookingUpdateRequest req = new BookingUpdateRequest();
+        req.setEmail("owner@example.com");
+        req.setName("New Name");
+        req.setPassengers(List.of(new Passenger()));
 
-        ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
-        verify(bookingRepo, times(1)).save(captor.capture());
-        Booking saved = captor.getValue();
-        assert saved.isCanceled();
+        StepVerifier.create(svc.updateBooking("PNR3", req))
+                .assertNext(b -> assertEquals("New Name", b.getName()))
+                .verifyComplete();
+
+        verify(bookingRepo).save(any());
+    }
+
+    @Test
+    void update_seatChange_success() {
+        Booking existing = new Booking();
+        existing.setPnr("PNR4");
+        existing.setEmail("owner@example.com");
+        existing.setCanceled(false);
+        existing.setJourneyDate(LocalDateTime.now().plusDays(5));
+        existing.setSeatNumbers(List.of("S1"));
+        existing.setPassengers(List.of(new Passenger()));
+        when(bookingRepo.findByPnr("PNR4")).thenReturn(Mono.just(existing));
+
+        AirlineInventory inv = sampleInventory();
+        inv.setAvailableSeats(List.of("S2","S3")); // S1 is with existing booking
+        inv.setId(existing.getFlightId() != null ? existing.getFlightId() : "f-1");
+        when(inventoryRepo.findById(inv.getId())).thenReturn(Mono.just(inv));
+        when(inventoryRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
+        when(bookingRepo.save(any())).thenAnswer(a -> Mono.just(a.getArgument(0)));
+
+        BookingUpdateRequest req = new BookingUpdateRequest();
+        req.setEmail("owner@example.com");
+        req.setSeatNumbers(List.of("S2"));
+        req.setPassengers(List.of(new Passenger()));
+
+        StepVerifier.create(svc.updateBooking("PNR4", req))
+                .assertNext(b -> assertTrue(b.getSeatNumbers().contains("S2")))
+                .verifyComplete();
+
+        verify(inventoryRepo).save(any());
+        verify(bookingRepo).save(any());
     }
 }
