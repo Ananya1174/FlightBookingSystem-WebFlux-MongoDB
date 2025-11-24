@@ -32,16 +32,33 @@ public class FlightController {
 
     // ADD INVENTORY (admin)
     @PostMapping("/airline/inventory/add")
-    public Mono<ResponseEntity<AirlineInventory>> addInventory(
-            @RequestBody @Valid AirlineInventory inventory,
+    public Mono<ResponseEntity<com.flightapp.model.AirlineInventory>> addInventory(
+            @RequestBody @Valid com.flightapp.dto.InventoryRequest req,
             UriComponentsBuilder uriBuilder) {
 
-        return flightService.addInventory(inventory)
-                .map(saved -> {
-                    var location = uriBuilder.path("/api/flight/airline/inventory/{id}")
-                            .buildAndExpand(saved.getId()).toUri();
-                    return ResponseEntity.created(location).body(saved); // 201
-                });
+        // Map DTO -> entity (or delegate mapping to service)
+        com.flightapp.model.AirlineInventory inv = new com.flightapp.model.AirlineInventory();
+        inv.setAirline(req.getAirline());
+        inv.setAirlineLogoUrl(req.getAirlineLogoUrl());
+        inv.setFlightNumber(req.getFlightNumber());
+        inv.setOrigin(req.getOrigin());
+        inv.setDestination(req.getDestination());
+        inv.setDeparture(req.getDeparture());
+        inv.setArrival(req.getArrival());
+        inv.setTotalSeats(req.getTotalSeats());
+        inv.setPrice(req.getPrice());
+        // If client passed seats use them, otherwise service may create default seat map
+        if (req.getAvailableSeats() != null && !req.getAvailableSeats().isEmpty()) {
+            inv.setAvailableSeats(new java.util.ArrayList<>(req.getAvailableSeats()));
+        }
+
+        // delegate to service to finalize/save
+        return flightService.addInventory(inv)
+            .map(saved -> {
+                var location = uriBuilder.path("/api/v1.0/flight/airline/inventory/{id}")
+                        .buildAndExpand(saved.getId()).toUri();
+                return ResponseEntity.created(location).body(saved);
+            });
     }
 
     // SEARCH
