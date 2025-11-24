@@ -11,7 +11,6 @@ public class Passenger {
   @NotBlank(message = "Passenger name required")
   private String name;
 
-  // allow M / F / Other (student-friendly)
   @NotBlank(message = "Gender required")
   @Pattern(regexp = "^(M|F|Other)$", message = "Gender must be M, F or Other")
   private String gender;
