@@ -21,21 +21,21 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-public class FlightServiceImplTest {
+class FlightServiceImplTest {
 
     InventoryRepository inventoryRepo;
     BookingRepository bookingRepo;
     FlightServiceImpl service;
 
     @BeforeEach
-    public void setup() {
+     void setup() {
         inventoryRepo = mock(InventoryRepository.class);
         bookingRepo = mock(BookingRepository.class);
         service = new FlightServiceImpl(inventoryRepo, bookingRepo);
     }
 
     @Test
-    public void addInventory_validInventory_saves() {
+     void addInventory_validInventory_saves() {
         AirlineInventory inv = new AirlineInventory();
         inv.setAirline("TestAir");
         inv.setFlightNumber("T100");
@@ -56,7 +56,7 @@ public class FlightServiceImplTest {
     }
 
     @Test
-    public void addInventory_sameOriginDestination_fails() {
+     void addInventory_sameOriginDestination_fails() {
         AirlineInventory inv = new AirlineInventory();
         inv.setOrigin("AAA");
         inv.setDestination("AAA");
@@ -72,7 +72,7 @@ public class FlightServiceImplTest {
     }
 
     @Test
-    public void book_successfulBooking_reservesSeatsAndSavesBooking() {
+     void book_successfulBooking_reservesSeatsAndSavesBooking() {
         AirlineInventory inv = new AirlineInventory();
         inv.setId("flight-1");
         inv.setFlightNumber("F1");
@@ -110,7 +110,7 @@ public class FlightServiceImplTest {
     }
 
     @Test
-    public void book_seatUnavailable_fails() {
+     void book_seatUnavailable_fails() {
         AirlineInventory inv = new AirlineInventory();
         inv.setId("flight-1");
         inv.setDeparture(LocalDateTime.now().plusDays(2));
@@ -134,7 +134,7 @@ public class FlightServiceImplTest {
     }
 
     @Test
-    public void cancel_ownerMismatch_fails() {
+     void cancel_ownerMismatch_fails() {
         Booking existing = new Booking();
         existing.setPnr("PNR1");
         existing.setEmail("owner@example.com");
@@ -166,7 +166,7 @@ public class FlightServiceImplTest {
     }
 
     @Test
-    public void cancel_successful_setsCanceledTrue() {
+     void cancel_successful_setsCanceledTrue() {
         Booking existing = new Booking();
         existing.setPnr("PNR1");
         existing.setEmail("owner@example.com");

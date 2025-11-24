@@ -10,20 +10,20 @@ import reactor.core.publisher.Mono;
 
 @ControllerAdvice
 public class GlobalErrorHandler {
-
+	private static final String ERROR_KEY = "error";
   @ExceptionHandler(IllegalArgumentException.class)
   public Mono<ResponseEntity<Object>> handleBadRequest(IllegalArgumentException ex) {
-    return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage())));
+    return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(ERROR_KEY, ex.getMessage())));
   }
 
   @ExceptionHandler(IllegalStateException.class)
   public Mono<ResponseEntity<Object>> handleConflict(IllegalStateException ex) {
-    return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage())));
+    return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(ERROR_KEY, ex.getMessage())));
   }
 
   @ExceptionHandler(Exception.class)
   public Mono<ResponseEntity<Object>> handleOther(Exception ex) {
     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .body(Map.of("error", "Internal server error")));
+        .body(Map.of(ERROR_KEY, "Internal server error")));
   }
 }

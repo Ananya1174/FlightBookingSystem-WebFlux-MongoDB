@@ -29,7 +29,7 @@ public class FlightController {
     public FlightController(FlightService flightService) {
         this.flightService = flightService;
     }
-
+    private static final String ERROR_KEY = "error";
     // ADD INVENTORY (admin)
     @PostMapping("/airline/inventory/add")
     public Mono<ResponseEntity<com.flightapp.model.AirlineInventory>> addInventory(
@@ -135,7 +135,7 @@ public class FlightController {
                 }))
                 .onErrorResume(err -> {
                     Map<String, Object> error = new HashMap<>();
-                    error.put("error", err.getMessage());
+                    error.put(ERROR_KEY, err.getMessage());
 
                     if (err instanceof IllegalArgumentException) {
                         return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).body(error));
@@ -156,7 +156,7 @@ public class FlightController {
 
         if (!headerEmail.equalsIgnoreCase(updateReq.getEmail())) {
             Map<String, Object> err = new HashMap<>();
-            err.put("error", "Header email and body email must match");
+            err.put(ERROR_KEY, "Header email and body email must match");
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(err));
         }
 
@@ -170,7 +170,7 @@ public class FlightController {
                 })
                 .onErrorResume(err -> {
                     Map<String, Object> error = new HashMap<>();
-                    error.put("error", err.getMessage());
+                    error.put(ERROR_KEY, err.getMessage());
 
                     if (err instanceof IllegalArgumentException) {
                         return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).body(error));

@@ -23,21 +23,21 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-public class FlightControllerTest {
+ class FlightControllerTest {
 
     FlightService flightService;
     WebTestClient webClient;
     FlightController controller;
 
     @BeforeEach
-    public void setup() {
+     void setup() {
         flightService = mock(FlightService.class);
         controller = new FlightController(flightService);
         webClient = WebTestClient.bindToController(controller).build();
     }
 
     @Test
-    public void addInventory_returns201() {
+     void addInventory_returns201() {
         AirlineInventory inv = new AirlineInventory();
         inv.setId("id-1");
         inv.setAirline("Indigo");
@@ -61,7 +61,7 @@ public class FlightControllerTest {
     }
 
     @Test
-    public void ticket_notFound_returns404() {
+     void ticket_notFound_returns404() {
         when(flightService.findByPnr("NOPE")).thenReturn(Mono.empty());
 
         webClient.get().uri("/api/flight/ticket/NOPE")
@@ -70,7 +70,7 @@ public class FlightControllerTest {
     }
 
     @Test
-    public void book_returns201() {
+    void book_returns201() {
         Booking booking = new Booking();
         booking.setPnr("PNR1");
         when(flightService.book(eq("flight-1"), any(BookingRequest.class))).thenReturn(Mono.just(booking));
@@ -96,7 +96,7 @@ public class FlightControllerTest {
     }
 
     @Test
-    public void cancel_ownerMismatch_returns401() {
+     void cancel_ownerMismatch_returns401() {
         when(flightService.cancelByPnrAndEmail(eq("PNR1"), eq("wrong@example.com")))
             .thenReturn(Mono.error(new IllegalStateException("Only owner can cancel the booking")));
 
@@ -112,7 +112,7 @@ public class FlightControllerTest {
     }
 
     @Test
-    public void updateBooking_success_returns200() {
+     void updateBooking_success_returns200() {
         Booking updated = new Booking();
         updated.setPnr("PNR2");
         when(flightService.updateBooking(eq("PNR2"), any(BookingUpdateRequest.class)))
