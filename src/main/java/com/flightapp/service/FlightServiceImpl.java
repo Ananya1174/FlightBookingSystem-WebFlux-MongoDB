@@ -159,7 +159,6 @@ public class FlightServiceImpl implements FlightService {
                 );
     }
 
-    // --- helpers ---
 
     private Mono<Void> validateUpdatePreconditions(Booking existingBooking, BookingUpdateRequest req) {
         if (!existingBooking.getEmail().equalsIgnoreCase(req.getEmail())) {
@@ -174,10 +173,6 @@ public class FlightServiceImpl implements FlightService {
         return Mono.empty();
     }
 
-    /**
-     * Centralized update processing extracted to reduce cognitive complexity in the main flow.
-     * Preserves identical logic to previous inline implementation.
-     */
     private Mono<Booking> processUpdate(Booking existingBooking, BookingUpdateRequest req) {
         final List<String> newSeats = req.getSeatNumbers();
 
@@ -188,7 +183,6 @@ public class FlightServiceImpl implements FlightService {
             return handleSeatChange(existingBooking, req, newSeats);
         }
 
-        // No seat change: update simple fields and save
         if (req.getPassengers() != null) {
             existingBooking.setPassengers(req.getPassengers());
         }
@@ -201,13 +195,6 @@ public class FlightServiceImpl implements FlightService {
         return bookingRepository.save(existingBooking);
     }
 
-    /**
-     * Handles the seat-change flow:
-     *  - loads inventory
-     *  - treats currently booked seats as available (swap)
-     *  - validates requested seats
-     *  - updates inventory.availableSeats and booking.seatNumbers
-     */
     private Mono<Booking> handleSeatChange(Booking existingBooking, BookingUpdateRequest req, List<String> newSeats) {
         // guard flightId presence
         if (Objects.isNull(existingBooking.getFlightId())) {
