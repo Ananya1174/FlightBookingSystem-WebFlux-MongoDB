@@ -21,10 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Controller tests using WebTestClient (bound to controller) to exercise happy and error paths.
- * Test class intentionally not public to satisfy Sonar rule.
- */
+
 class FlightControllerTest {
 
     FlightService flightService;
