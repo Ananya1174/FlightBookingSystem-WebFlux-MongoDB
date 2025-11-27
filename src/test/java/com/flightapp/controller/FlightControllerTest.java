@@ -4,11 +4,11 @@ import com.flightapp.service.FlightService;
 import com.flightapp.model.AirlineInventory;
 import com.flightapp.model.Booking;
 import com.flightapp.dto.BookingRequest;
+import com.flightapp.dto.SearchRequest;
 import com.flightapp.model.Passenger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
@@ -69,13 +69,14 @@ class FlightControllerTest {
         when(flightService.search(eq("HYD"), eq("BLR"), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(Flux.just(inv));
 
-        webClient.post().uri(uriBuilder ->
-                        uriBuilder.path("/api/flight/search")
-                                .queryParam("origin", "HYD")
-                                .queryParam("destination", "BLR")
-                                .queryParam("from", LocalDateTime.now().toString())
-                                .queryParam("to", LocalDateTime.now().plusDays(3).toString())
-                                .build())
+        SearchRequest req = new SearchRequest();
+        req.setOrigin("HYD");
+        req.setDestination("BLR");
+        req.setFrom(LocalDateTime.now().toString());
+        req.setTo(LocalDateTime.now().plusDays(3).toString());
+
+        webClient.post().uri("/api/flight/search")
+                .bodyValue(req)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
                 .expectBodyList(AirlineInventory.class)
@@ -113,7 +114,7 @@ class FlightControllerTest {
     }
 
     @Test
-    void history_includesCancelled_whenFlagTrue() {
+    void history_returnsBookings_withStatusField() {
         Booking b = new Booking();
         b.setPnr("PNR10");
         b.setEmail("e@example.com");
@@ -121,12 +122,21 @@ class FlightControllerTest {
 
         when(flightService.findByEmail("e@example.com")).thenReturn(Flux.just(b));
 
-        webClient.get().uri("/api/flight/booking/history/e@example.com?includeCancelled=true")
+        webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/flight/booking/history")
+                        .queryParam("email", "e@example.com")
+                        .build())
                 .exchange()
                 .expectStatus().isOk()
-                .expectBodyList(Booking.class)
+                .expectBodyList(Map.class)
                 .hasSize(1)
-                .consumeWith(res -> assertThat(res.getResponseBody().get(0).isCanceled()).isTrue());
+                .consumeWith(res -> {
+                    Map<String, Object> first = res.getResponseBody().get(0);
+                    // clearer assertions using AssertJ containsEntry
+                    assertThat(first).containsEntry("status", "CANCELLED");
+                    assertThat(first).containsEntry("email", "e@example.com");
+                    assertThat(first).containsEntry("pnr", "PNR10");
+                });
     }
 
     @Test
@@ -135,27 +145,22 @@ class FlightControllerTest {
         when(flightService.cancelByPnrAndEmail("PNR1", "owner@example.com")).thenReturn(Mono.empty());
 
         webClient.method(HttpMethod.DELETE)
-                .uri("/api/flight/booking/cancel/PNR1")
+                .uri("/api/flight/booking/cancel/PNR1?email=owner@example.com")
                 .header("X-User-Email", "owner@example.com")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("email", "owner@example.com"))
                 .exchange()
                 .expectStatus().is2xxSuccessful()
                 .expectBody()
                 .jsonPath("$.message").isEqualTo("Booking cancelled successfully")
                 .jsonPath("$.pnr").isEqualTo("PNR1");
     }
-
     @Test
-    void cancel_ownerMismatch_returnsBadRequestWithMessage() {
+    void cancel_ownerMismatch_returnsBadRequest() {
         when(flightService.cancelByPnrAndEmail("PNR1", "wrong@example.com"))
                 .thenReturn(Mono.error(new IllegalStateException("Only owner can cancel the booking")));
 
         webClient.method(HttpMethod.DELETE)
-                .uri("/api/flight/booking/cancel/PNR1")
+                .uri("/api/flight/booking/cancel/PNR1?email=wrong@example.com")
                 .header("X-User-Email", "wrong@example.com")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("email", "wrong@example.com"))
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -165,11 +170,11 @@ class FlightControllerTest {
     @Test
     void cancel_missingBody_returns400() {
         webClient.method(HttpMethod.DELETE)
-                .uri("/api/flight/booking/cancel/PNR1")
+                .uri("/api/flight/booking/cancel/PNR1") // no ?email=
                 .header("X-User-Email", "owner@example.com")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
-                .jsonPath("$.error").isEqualTo("Email required in request body");
+                .jsonPath("$.error").isEqualTo("Email required in request parameter");
     }
 }

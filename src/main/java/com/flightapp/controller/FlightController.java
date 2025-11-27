@@ -93,28 +93,43 @@ public class FlightController {
                 .defaultIfEmpty(ResponseEntity.<Booking>notFound().build());
     }
 
-    @GetMapping("/booking/history/{emailId}")
-    public Flux<Map<String,Object>> history(@PathVariable String emailId) {
-        return flightService.findByEmail(emailId)
-            .map(b -> {
-                Map<String,Object> m = new HashMap<>();
-                m.put("pnr", b.getPnr());
-                m.put("name", b.getName());
-                m.put("email", b.getEmail());
-                m.put("flightId", b.getFlightId());
-                m.put("journeyDate", b.getJourneyDate());
-                m.put("seatNumbers", b.getSeatNumbers());
-                m.put("status", Boolean.TRUE.equals(b.isCanceled()) ? "CANCELLED" : "ACTIVE");
-                // optionally include canceledAt, cancelReason etc.
-                if (b.getCanceledAt() != null) m.put("canceledAt", b.getCanceledAt());
-                return m;
-            });
+    @GetMapping("/booking/history")
+    public Flux<Map<String, Object>> history(@RequestParam(name = "email") String email) {
+        return flightService.findByEmail(email)
+                .map(b -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("pnr", b.getPnr());
+                    m.put("name", b.getName());
+                    m.put("email", b.getEmail());
+                    m.put("flightId", b.getFlightId());
+                    m.put("journeyDate", b.getJourneyDate());
+                    m.put("seatNumbers", b.getSeatNumbers());
+                    m.put("status", Boolean.TRUE.equals(b.isCanceled()) ? "CANCELLED" : "ACTIVE");
+                    if (b.getCanceledAt() != null) m.put("canceledAt", b.getCanceledAt());
+                    return m;
+                });
     }
 
     @DeleteMapping("/booking/cancel/{pnr}")
     public Mono<ResponseEntity<Map<String, Object>>> cancel(
             @PathVariable String pnr,
-            @RequestHeader(name = "X-User-Email") String headerEmail) {
+            @RequestHeader(name = "X-User-Email", required = true) String headerEmail,
+            @RequestParam(name = "email", required = false) String emailParam) {
+
+        // require email request parameter for verification
+        if (emailParam == null || emailParam.isBlank()) {
+            Map<String, Object> error = new HashMap<>();
+            error.put(ERROR_KEY, "Email required in request parameter");
+            return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error));
+        }
+
+        // Optional: verify header and request param match. If you prefer to let the service decide,
+        // you can skip this check; keeping it here gives clearer early feedback.
+        if (!headerEmail.equalsIgnoreCase(emailParam)) {
+            Map<String, Object> error = new HashMap<>();
+            error.put(ERROR_KEY, "Header email and request parameter email must match");
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error));
+        }
 
         return flightService.cancelByPnrAndEmail(pnr, headerEmail)
                 .then(Mono.fromSupplier(() -> {
